@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevEco Code · 面向 HarmonyOS 的 AI Agent 终端工具</title>
+  <meta name="description" content="DevEco Code 是面向 HarmonyOS 开发场景的 AI Agent 工具，支持代码编写、编译构建、设备调试、ArkTS 检查等全流程能力。" />
+
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Space Grotesk"', '"Noto Sans SC"', 'sans-serif'],
+            sans: ['"Noto Sans SC"', '"Space Grotesk"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            ink: {
+              950: '#0a0a0c',
+              900: '#0f1014',
+              800: '#161820',
+              700: '#1f222b',
+              600: '#2a2e39',
+              500: '#3a3f4d',
+            },
+            bone: {
+              50: '#faf9f5',
+              100: '#f1efe6',
+              200: '#e3e0d2',
+              300: '#b8b4a3',
+              400: '#807d70',
+            },
+            ember: {
+              50:  '#fff4ed',
+              100: '#ffe4d1',
+              200: '#ffc4a3',
+              300: '#ff9a6a',
+              400: '#ff7842',
+              500: '#ff6b35',
+              600: '#e54a14',
+              700: '#bf3a0e',
+              800: '#9a3110',
+              900: '#7d2c12',
+            },
+            cyan: {
+              accent: '#67e8f9'
+            }
+          },
+          letterSpacing: {
+            tightest: '-0.04em',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    html, body { overflow-x: hidden; }
+    body {
+      background: #0a0a0c;
+      color: #e7e5dc;
+      font-feature-settings: "ss01", "cv11";
+    }
+    /* Grid noise & gradient mesh */
+    .bg-mesh {
+      background:
+        radial-gradient(circle at 12% 15%, rgba(255, 107, 53, 0.18), transparent 45%),
+        radial-gradient(circle at 88% 70%, rgba(103, 232, 249, 0.10), transparent 55%),
+        radial-gradient(circle at 50% 110%, rgba(255, 107, 53, 0.08), transparent 60%),
+        #0a0a0c;
+    }
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+    .noise::before {
+      content: "";
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.10 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.35; mix-blend-mode: overlay;
+    }
+
+    /* Reveal */
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(0.16,1,0.3,1), transform .8s cubic-bezier(0.16,1,0.3,1); }
+    .reveal.in { opacity: 1; transform: none; }
+
+    /* Marquee */
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .marquee-track { animation: marquee 36s linear infinite; }
+    .marquee-track:hover { animation-play-state: paused; }
+
+    /* Caret */
+    @keyframes blink { 50% { opacity: 0; } }
+    .caret { animation: blink 1s steps(1) infinite; }
+
+    /* Floating pulses */
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    .float { animation: float 6s ease-in-out infinite; }
+
+    /* Ember underline link */
+    .link-ember {
+      background-image: linear-gradient(90deg, #ff7842, #ff7842);
+      background-size: 0% 1.5px;
+      background-position: 0 100%;
+      background-repeat: no-repeat;
+      transition: background-size .4s cubic-bezier(0.16,1,0.3,1);
+    }
+    .link-ember:hover { background-size: 100% 1.5px; }
+
+    /* Card glow */
+    .card-glow {
+      position: relative;
+      isolation: isolate;
+    }
+    .card-glow::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      background: linear-gradient(140deg, rgba(255,120,66,0.35), rgba(103,232,249,0.0) 40%, transparent 60%);
+      z-index: -1;
+      opacity: 0;
+      transition: opacity .5s ease;
+    }
+    .card-glow:hover::before { opacity: 1; }
+
+    /* Code block */
+    pre code { font-variant-ligatures: contextual; }
+    .code-shadow { box-shadow: 0 30px 80px -30px rgba(255,107,53,0.25), 0 1px 0 rgba(255,255,255,0.04) inset; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #0a0a0c; }
+    ::-webkit-scrollbar-thumb { background: #2a2e39; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3f4d; }
+
+    /* Selection */
+    ::selection { background: #ff6b35; color: #0a0a0c; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .marquee-track, .float, .caret { animation: none !important; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+
+<body class="font-sans antialiased selection:bg-ember-500 selection:text-ink-950">
+
+  <!-- ╭── NAV ────────────────────────────────────────────────────╮ -->
+  <header class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-ink-950/70 border-b border-white/5">
+    <nav class="max-w-[1400px] mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2.5 group">
+        <span class="w-7 h-7 rounded-md grid place-items-center bg-gradient-to-br from-ember-400 to-ember-700 text-ink-950 font-mono font-bold text-sm shadow-lg shadow-ember-500/30">D</span>
+        <span class="font-display font-semibold tracking-tight text-bone-50">DevEco<span class="text-ember-400">Code</span></span>
+      </a>
+
+      <div class="hidden md:flex items-center gap-8 text-sm text-bone-300">
+        <a href="#start" class="link-ember hover:text-bone-50 transition">快速开始</a>
+        <a href="#features" class="link-ember hover:text-bone-50 transition">能力</a>
+        <a href="#agents" class="link-ember hover:text-bone-50 transition">Agent</a>
+        <a href="#config" class="link-ember hover:text-bone-50 transition">配置</a>
+        <a href="#extend" class="link-ember hover:text-bone-50 transition">扩展</a>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a href="https://gitcode.com/openharmony-sig/deveco-code" target="_blank" rel="noreferrer"
+           class="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-bone-300 hover:text-bone-50 transition px-3 py-1.5 border border-white/10 rounded-full">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6L2 12l6 6M16 6l6 6-6 6"/></svg>
+          GitCode
+        </a>
+        <a href="#start"
+           class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-950 bg-bone-50 hover:bg-ember-400 transition px-4 py-2 rounded-full shadow-[0_8px_30px_-10px_rgba(255,107,53,0.5)]">
+          安装
+          <span aria-hidden>→</span>
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ╭── HERO ────────────────────────────────────────────────────╮ -->
+  <section class="relative overflow-hidden pt-32 pb-24 bg-mesh noise">
+    <div class="absolute inset-0 bg-grid opacity-60"></div>
+
+    <div class="relative max-w-[1400px] mx-auto px-6 lg:px-10 grid lg:grid-cols-12 gap-10 items-end">
+
+      <!-- 左：标题 -->
+      <div class="lg:col-span-7 reveal">
+        <div class="flex items-center gap-3 text-xs font-mono text-bone-300 mb-7">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ember-500/10 border border-ember-500/30 text-ember-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-ember-400 animate-pulse"></span>
+            v2026 · 基于 OpenCode 扩展
+          </span>
+          <span class="opacity-60">面向 HarmonyOS 开发场景</span>
+        </div>
+
+        <h1 class="font-display font-bold tracking-tightest text-bone-50 leading-[0.95]
+                   text-[clamp(2.8rem,7vw,6.5rem)]">
+          在终端里，
+          <span class="block">为<span class="italic text-ember-400">鸿蒙</span>而生的</span>
+          <span class="block">
+            AI
+            <span class="relative inline-block">
+              Agent
+              <svg class="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" fill="none" preserveAspectRatio="none" aria-hidden>
+                <path d="M2 8 Q 80 2, 160 7 T 298 5" stroke="#ff6b35" stroke-width="3" stroke-linecap="round" fill="none"/>
+              </svg>
+            </span>。
+          </span>
+        </h1>
+
+        <p class="mt-8 max-w-[58ch] text-bone-300 text-lg leading-relaxed">
+          DevEco Code 把代码编写、编译构建、设备运行、文档查阅、运行时调试
+          与 ArkTS 问题修复，全部塞进一个为开发者保留的命令行入口。
+          一行 <code class="font-mono text-ember-300 bg-ember-500/10 px-1.5 py-0.5 rounded">deveco</code>，
+          直达 HarmonyOS 全流程。
+        </p>
+
+        <div class="mt-10 flex flex-wrap items-center gap-4">
+          <a href="#start"
+             class="group inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-ember-500 hover:bg-ember-400 text-ink-950 font-medium transition shadow-[0_20px_60px_-15px_rgba(255,107,53,0.6)]">
+            立即安装
+            <span class="transition-transform group-hover:translate-x-1">→</span>
+          </a>
+          <a href="#features"
+             class="inline-flex items-center gap-2 px-6 py-3.5 rounded-full border border-white/15 hover:border-white/40 hover:bg-white/5 text-bone-100 transition">
+            查看能力
+          </a>
+          <div class="flex items-center gap-2 ml-2 text-xs font-mono text-bone-300">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            登录后免费使用 <span class="text-bone-50">GLM-5.1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：终端窗口 -->
+      <div class="lg:col-span-5 reveal">
+        <div class="relative float">
+          <!-- soft glow -->
+          <div class="absolute -inset-4 bg-gradient-to-br from-ember-500/30 to-cyan-accent/10 blur-2xl rounded-3xl"></div>
+
+          <div class="relative rounded-2xl bg-ink-900/95 border border-white/10 code-shadow overflow-hidden">
+            <!-- title bar -->
+            <div class="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-ink-800/60">
+              <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-[#ff5f57]"></span>
+                <span class="w-3 h-3 rounded-full bg-[#febc2e]"></span>
+                <span class="w-3 h-3 rounded-full bg-[#28c840]"></span>
+              </div>
+              <span class="font-mono text-[11px] text-bone-400 tracking-wider uppercase">~ · deveco</span>
+              <span class="font-mono text-[11px] text-bone-400">zsh</span>
+            </div>
+
+            <!-- body -->
+            <div class="p-5 font-mono text-[13.5px] leading-relaxed">
+              <div class="text-bone-400"><span class="text-ember-400">➜</span> npm install -g <span class="text-cyan-accent">@deveco/deveco-code</span></div>
+              <div class="text-bone-500 ml-3">added 1 package in 8s</div>
+              <div class="mt-2 text-bone-400"><span class="text-ember-400">➜</span> deveco</div>
+
+              <div class="mt-3 p-3 rounded-lg bg-gradient-to-br from-ember-500/8 to-transparent border border-ember-500/20">
+                <div class="flex items-center gap-2 text-bone-50 mb-2">
+                  <span class="text-ember-400">◆</span> 欢迎使用 DevEco Code
+                </div>
+                <div class="text-bone-300 text-[12.5px]">描述你的 HarmonyOS 需求，例如：</div>
+                <div class="mt-1.5 text-ember-300 text-[12.5px]">› 帮我用 ArkTS 写一个登录页</div>
+              </div>
+
+              <div class="mt-4 text-bone-400 flex items-center">
+                <span class="text-ember-400">›</span>
+                <span class="ml-2 text-bone-100">解释一下代码库的架构</span>
+                <span class="caret ml-0.5 w-2 h-4 bg-ember-400 inline-block"></span>
+              </div>
+
+              <div class="mt-4 text-[12px] text-bone-500 flex items-center gap-3 pt-3 border-t border-white/5">
+                <span><span class="text-bone-300">Tab</span> 切换 Agent</span>
+                <span><span class="text-bone-300">Ctrl+A</span> Provider</span>
+                <span><span class="text-bone-300">/models</span> 模型</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- meta row -->
+    <div class="relative max-w-[1400px] mx-auto px-6 lg:px-10 mt-24 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm font-mono">
+      <div class="reveal">
+        <div class="text-3xl font-display text-bone-50 font-bold">Node ≥ 22</div>
+        <div class="text-bone-400 mt-1">运行时</div>
+      </div>
+      <div class="reveal">
+        <div class="text-3xl font-display text-bone-50 font-bold">DevEco ≥ 6.1</div>
+        <div class="text-bone-400 mt-1">编译 / HDC / 模拟器</div>
+      </div>
+      <div class="reveal">
+        <div class="text-3xl font-display text-bone-50 font-bold">macOS · Win</div>
+        <div class="text-bone-400 mt-1">arm64 · x64</div>
+      </div>
+      <div class="reveal">
+        <div class="text-3xl font-display text-bone-50 font-bold">MIT</div>
+        <div class="text-bone-400 mt-1">开源许可</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── MARQUEE ─────────────────────────────────────────────────╮ -->
+  <section class="relative py-6 border-y border-white/5 bg-ink-950 overflow-hidden">
+    <div class="flex items-center gap-12 marquee-track whitespace-nowrap font-mono text-sm text-bone-400">
+      <!-- duplicated set for seamless loop -->
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> build_project</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> start_app</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> hdc_log</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> verify_ui</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> check_ets_files</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> arkts_knowledge_search</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> switch_cwd</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> /models</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> Provider · Ctrl+A</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> Skill · MCP · Plugin</span>
+      <!-- duplicate -->
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> build_project</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> start_app</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> hdc_log</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> verify_ui</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> check_ets_files</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> arkts_knowledge_search</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> switch_cwd</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> /models</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> Provider · Ctrl+A</span>
+      <span class="flex items-center gap-2"><span class="text-ember-400">›</span> Skill · MCP · Plugin</span>
+    </div>
+  </section>
+
+  <!-- ╭── QUICK START ─────────────────────────────────────────────╮ -->
+  <section id="start" class="relative py-28">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10 grid lg:grid-cols-12 gap-16">
+
+      <div class="lg:col-span-4 reveal">
+        <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">01 · QUICK START</div>
+        <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl md:text-5xl leading-[1.05]">
+          三步，
+          <span class="block italic font-normal text-bone-300">开始与 HarmonyOS 对话。</span>
+        </h2>
+        <p class="mt-6 text-bone-300 leading-relaxed">
+          先安装 Node.js 22+，再装一行 npm 包，然后输入 <code class="font-mono text-ember-300">deveco</code>。
+          所有交互都在终端里完成——你描述需求，Agent 写代码、编译、推包、验证 UI。
+        </p>
+
+        <div class="mt-8 p-4 rounded-xl border border-ember-500/30 bg-ember-500/5">
+          <div class="flex items-start gap-2.5 text-sm text-bone-200">
+            <span class="text-ember-400 mt-0.5">!</span>
+            <p class="leading-relaxed">
+              建议使用 <a class="link-ember text-ember-300" href="https://registry.npmjs.org/" target="_blank">npm 官方源</a>
+              或 <a class="link-ember text-ember-300" href="https://registry.npmmirror.com/" target="_blank">淘宝镜像</a>，
+              其他镜像可能因同步延迟导致安装失败。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 reveal">
+        <div class="grid gap-4">
+          <!-- step 1 -->
+          <div class="card-glow rounded-2xl border border-white/10 bg-ink-900/60 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-white/5">
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-xs text-ember-400">01</span>
+                <span class="text-sm text-bone-100">安装</span>
+              </div>
+              <button onclick="copyCode(this)" data-code="npm install -g @deveco/deveco-code"
+                      class="text-xs font-mono text-bone-400 hover:text-ember-300 transition">复制 ⌘C</button>
+            </div>
+            <pre class="px-5 py-5 font-mono text-[14px] text-bone-100 overflow-x-auto"><code><span class="text-ember-400">$</span> npm install -g <span class="text-cyan-accent">@deveco/deveco-code</span></code></pre>
+          </div>
+
+          <!-- step 2 -->
+          <div class="card-glow rounded-2xl border border-white/10 bg-ink-900/60 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-white/5">
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-xs text-ember-400">02</span>
+                <span class="text-sm text-bone-100">启动</span>
+              </div>
+              <button onclick="copyCode(this)" data-code="deveco"
+                      class="text-xs font-mono text-bone-400 hover:text-ember-300 transition">复制 ⌘C</button>
+            </div>
+            <pre class="px-5 py-5 font-mono text-[14px] text-bone-100"><code><span class="text-ember-400">$</span> deveco</code></pre>
+          </div>
+
+          <!-- step 3 -->
+          <div class="card-glow rounded-2xl border border-white/10 bg-ink-900/60 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-white/5">
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-xs text-ember-400">03</span>
+                <span class="text-sm text-bone-100">提示词示例</span>
+              </div>
+              <span class="text-xs font-mono text-bone-500">直接描述你的需求</span>
+            </div>
+            <div class="px-5 py-5 font-mono text-[14px] space-y-2 text-bone-200">
+              <div><span class="text-ember-400">›</span> 解释一下代码库的架构</div>
+              <div><span class="text-ember-400">›</span> 帮我重构 <span class="text-cyan-accent">login_check</span> 这个函数</div>
+              <div><span class="text-ember-400">›</span> 帮我检查并修复语法错误</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ╭── FEATURES BENTO ──────────────────────────────────────────╮ -->
+  <section id="features" class="relative py-28 border-t border-white/5">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-14 reveal">
+        <div>
+          <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">02 · CAPABILITIES</div>
+          <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl md:text-5xl leading-[1.05]">
+            把工程师的全流程，
+            <span class="block italic font-normal text-bone-300">都集成进一个对话窗口。</span>
+          </h2>
+        </div>
+        <p class="text-bone-300 max-w-sm leading-relaxed">
+          从代码到设备，从知识到检查——DevEco Code 内置 HarmonyOS 场景下高频使用的 7 类工具能力。
+        </p>
+      </div>
+
+      <!-- bento grid -->
+      <div class="grid grid-cols-12 gap-4 md:gap-5 auto-rows-[160px]">
+
+        <!-- HERO TILE -->
+        <div class="col-span-12 md:col-span-7 md:row-span-2 rounded-3xl bg-gradient-to-br from-ember-500/15 via-ink-900 to-ink-900 border border-ember-500/20 p-8 relative overflow-hidden reveal card-glow">
+          <div class="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-ember-500/15 blur-3xl"></div>
+          <div class="relative h-full flex flex-col justify-between">
+            <div>
+              <div class="font-mono text-xs text-ember-300 tracking-wider uppercase">build_project</div>
+              <h3 class="mt-3 font-display text-3xl font-bold text-bone-50 leading-tight">
+                一键编译，自动导出产物
+              </h3>
+              <p class="mt-3 text-bone-300 max-w-md leading-relaxed text-sm">
+                通过 Hvigor 完成项目构建，构建产物自动归档；失败时由 Agent 读取日志、定位问题、直接修复。
+              </p>
+            </div>
+            <div class="font-mono text-xs text-bone-400 grid grid-cols-3 gap-3 pt-4 border-t border-white/5">
+              <div><div class="text-bone-50 text-base">Hvigor</div>构建</div>
+              <div><div class="text-bone-50 text-base">HDC</div>推包</div>
+              <div><div class="text-bone-50 text-base">HAP / HAR</div>产物</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- tile -->
+        <div class="col-span-6 md:col-span-5 rounded-3xl bg-ink-900/60 border border-white/10 p-6 reveal card-glow">
+          <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">start_app</div>
+          <h3 class="mt-3 font-display text-xl text-bone-50 leading-snug">在模拟器或真机上运行应用</h3>
+          <div class="mt-4 flex items-center gap-2 text-xs font-mono text-bone-400">
+            <span class="px-2 py-1 rounded bg-white/5 border border-white/10">真机</span>
+            <span class="px-2 py-1 rounded bg-white/5 border border-white/10">模拟器</span>
+          </div>
+        </div>
+
+        <!-- tile -->
+        <div class="col-span-6 md:col-span-5 rounded-3xl bg-ink-900/60 border border-white/10 p-6 reveal card-glow">
+          <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">hdc_log</div>
+          <h3 class="mt-3 font-display text-xl text-bone-50 leading-snug">设备日志，按需收集与清理</h3>
+          <div class="mt-3 text-xs text-bone-400 leading-relaxed">连接模拟器、查看实时输出、清理冗余记录。</div>
+        </div>
+
+        <!-- tile -->
+        <div class="col-span-12 md:col-span-4 rounded-3xl bg-ink-900/60 border border-white/10 p-6 reveal card-glow">
+          <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">verify_ui</div>
+          <h3 class="mt-3 font-display text-xl text-bone-50 leading-snug">UI 验证</h3>
+          <p class="mt-2 text-xs text-bone-400 leading-relaxed">执行 UI 操作验证功能是否符合需求，默认调用内置 Qwen3-VL 多模态模型。</p>
+        </div>
+
+        <!-- tile ETS -->
+        <div class="col-span-12 md:col-span-4 rounded-3xl bg-gradient-to-br from-ink-800 to-ink-900 border border-white/10 p-6 reveal card-glow relative overflow-hidden">
+          <div class="absolute top-0 right-0 px-3 py-1 rounded-bl-2xl bg-ember-500/15 text-ember-300 text-[10px] font-mono uppercase tracking-wider">ArkTS</div>
+          <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">check_ets_files</div>
+          <h3 class="mt-3 font-display text-xl text-bone-50 leading-snug">ArkTS 静态语法检查</h3>
+          <p class="mt-2 text-xs text-bone-400 leading-relaxed">在保存与提交前找出潜在错误，配合 Agent 自动修复。</p>
+        </div>
+
+        <!-- tile knowledge -->
+        <div class="col-span-12 md:col-span-4 rounded-3xl bg-ink-900/60 border border-white/10 p-6 reveal card-glow">
+          <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">arkts_knowledge_search</div>
+          <h3 class="mt-3 font-display text-xl text-bone-50 leading-snug">HarmonyOS 知识检索</h3>
+          <p class="mt-2 text-xs text-bone-400 leading-relaxed">文档、API、最佳实践，全部嵌入对话流，引用即来源。</p>
+        </div>
+
+        <!-- last row full width tile -->
+        <div class="col-span-12 rounded-3xl border border-white/10 bg-gradient-to-r from-ink-900 via-ink-900 to-ember-500/10 p-6 md:p-8 reveal card-glow flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div>
+            <div class="font-mono text-xs text-cyan-accent tracking-wider uppercase">switch_cwd</div>
+            <h3 class="mt-2 font-display text-2xl text-bone-50">在多个 HarmonyOS 工程之间无缝切换</h3>
+            <p class="mt-2 text-sm text-bone-400 max-w-2xl">不必退出会话，一条命令切换当前工程目录，Agent 自动重载上下文。</p>
+          </div>
+          <div class="font-mono text-sm bg-ink-950/80 border border-white/10 rounded-xl px-4 py-3 text-bone-200">
+            <span class="text-ember-400">›</span> /switch_cwd ./harmony-shop
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── AGENT MODES ─────────────────────────────────────────────╮ -->
+  <section id="agents" class="relative py-28 border-t border-white/5">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+
+      <div class="grid lg:grid-cols-12 gap-12 items-end mb-14">
+        <div class="lg:col-span-7 reveal">
+          <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">03 · AGENT MODES</div>
+          <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl md:text-5xl leading-[1.05]">
+            按 <kbd class="font-mono text-2xl px-3 py-1 rounded-lg bg-ember-500/10 border border-ember-500/30 text-ember-300">Tab</kbd>
+            切换三种工作模式。
+          </h2>
+        </div>
+        <p class="lg:col-span-5 text-bone-300 leading-relaxed reveal">
+          每种模式都为特定开发阶段设计——从构建到规划到端到端交付，让 Agent 在合适的时候做合适的事。
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-5">
+        <!-- BUILD -->
+        <article class="card-glow group p-7 rounded-3xl border border-white/10 bg-ink-900/60 hover:border-ember-500/40 transition relative overflow-hidden reveal">
+          <div class="absolute top-6 right-6 text-[10px] font-mono px-2 py-1 rounded-full bg-ember-500/10 text-ember-300 border border-ember-500/30">默认</div>
+          <div class="font-mono text-xs text-ember-400 tracking-wider">▣ MODE / 01</div>
+          <h3 class="mt-4 font-display text-3xl text-bone-50 font-bold">Build</h3>
+          <p class="mt-3 text-sm text-bone-300 leading-relaxed">
+            工程生成、代码生成、配置修正、测试执行、推包运行与发布——动手为主的核心模式。
+          </p>
+          <ul class="mt-6 space-y-2 text-sm text-bone-300">
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 代码生成与重构</li>
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 编译构建 / 测试 / 发布</li>
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 配置修正与设备推包</li>
+          </ul>
+        </article>
+
+        <!-- PLAN -->
+        <article class="card-glow group p-7 rounded-3xl border border-white/10 bg-ink-900/60 hover:border-cyan-accent/40 transition reveal">
+          <div class="font-mono text-xs text-cyan-accent tracking-wider">▢ MODE / 02</div>
+          <h3 class="mt-4 font-display text-3xl text-bone-50 font-bold">Plan</h3>
+          <p class="mt-3 text-sm text-bone-300 leading-relaxed">
+            需求拆解、技术方案、发布规划、测试规划、文档生成——动嘴为主的策划模式。
+          </p>
+          <ul class="mt-6 space-y-2 text-sm text-bone-300">
+            <li class="flex gap-2"><span class="text-cyan-accent">›</span> 需求拆解 / 技术方案</li>
+            <li class="flex gap-2"><span class="text-cyan-accent">›</span> 发布规划 / 测试规划</li>
+            <li class="flex gap-2"><span class="text-cyan-accent">›</span> 设计文档自动生成</li>
+          </ul>
+        </article>
+
+        <!-- GOAL -->
+        <article class="card-glow group p-7 rounded-3xl border border-white/10 bg-gradient-to-br from-ember-500/10 to-ink-900 hover:border-ember-500/40 transition relative overflow-hidden reveal">
+          <div class="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-ember-500/15 blur-3xl"></div>
+          <div class="font-mono text-xs text-ember-400 tracking-wider relative">◆ MODE / 03</div>
+          <h3 class="mt-4 font-display text-3xl text-bone-50 font-bold relative">Goal</h3>
+          <p class="mt-3 text-sm text-bone-300 leading-relaxed relative">
+            SDD 五阶段端到端特性交付——从一句需求，到实现与构建验证全程托管。
+          </p>
+          <ul class="mt-6 space-y-2 text-sm text-bone-300 relative">
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 需求 → 设计 → 实现</li>
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 自动测试 / 构建 / 验证</li>
+            <li class="flex gap-2"><span class="text-ember-400">›</span> 端到端特性交付</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── PLATFORM + RECOMMENDED ──────────────────────────────────╮ -->
+  <section class="relative py-28 border-t border-white/5">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10 grid lg:grid-cols-12 gap-12">
+
+      <!-- left: platforms -->
+      <div class="lg:col-span-7 reveal">
+        <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">04 · PLATFORM</div>
+        <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl leading-[1.05]">
+          支持平台
+        </h2>
+        <p class="mt-4 text-bone-300 max-w-xl leading-relaxed">
+          通过 npm 提供以下平台安装包。
+          <span class="text-bone-50">暂不支持 Linux</span>——
+          HarmonyOS 编译与模拟器调试依赖 DevEco Studio，目前仅提供 Windows 与 macOS。
+        </p>
+
+        <!-- table -->
+        <div class="mt-10 divide-y divide-white/5 border-y border-white/10">
+          <div class="grid grid-cols-12 py-4 font-mono text-[11px] uppercase tracking-widest text-bone-500">
+            <div class="col-span-3">平台</div>
+            <div class="col-span-4">架构</div>
+            <div class="col-span-5">说明</div>
+          </div>
+          <div class="grid grid-cols-12 py-5 items-center hover:bg-white/[0.02] transition">
+            <div class="col-span-3 flex items-center gap-2 text-bone-50">
+              <span class="font-mono text-ember-400">▣</span> Windows
+            </div>
+            <div class="col-span-4 font-mono text-sm text-bone-300">x64</div>
+            <div class="col-span-5 text-sm text-bone-400">Windows 11</div>
+          </div>
+          <div class="grid grid-cols-12 py-5 items-center hover:bg-white/[0.02] transition">
+            <div class="col-span-3 flex items-center gap-2 text-bone-50">
+              <span class="font-mono text-ember-400">▣</span> macOS
+            </div>
+            <div class="col-span-4 font-mono text-sm text-bone-300">arm64</div>
+            <div class="col-span-5 text-sm text-bone-400">Apple Silicon · M 系列芯片</div>
+          </div>
+          <div class="grid grid-cols-12 py-5 items-center hover:bg-white/[0.02] transition">
+            <div class="col-span-3 flex items-center gap-2 text-bone-50">
+              <span class="font-mono text-ember-400">▣</span> macOS
+            </div>
+            <div class="col-span-4 font-mono text-sm text-bone-300">x64</div>
+            <div class="col-span-5 text-sm text-bone-400">Intel 芯片 Mac</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: recommended -->
+      <div class="lg:col-span-5 reveal">
+        <div class="rounded-3xl border border-white/10 bg-ink-900/60 p-7 space-y-7">
+          <div>
+            <div class="text-xs font-mono text-cyan-accent tracking-widest uppercase">RECOMMENDED</div>
+            <h3 class="mt-2 font-display text-2xl text-bone-50">推荐配置</h3>
+          </div>
+
+          <div class="space-y-5">
+            <div>
+              <div class="text-bone-300 text-sm font-medium mb-2">操作系统</div>
+              <ul class="space-y-1.5 text-sm text-bone-400 font-mono">
+                <li>· Windows 11 22H2 +</li>
+                <li>· macOS 15 Sequoia +</li>
+              </ul>
+            </div>
+
+            <div>
+              <div class="text-bone-300 text-sm font-medium mb-2">硬件</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-xl p-3 border border-white/10 bg-white/[0.02]">
+                  <div class="text-xs text-bone-500 font-mono">日常使用</div>
+                  <div class="mt-1 text-bone-50 font-display text-lg">8GB+</div>
+                  <div class="text-[11px] text-bone-500">短会话 · 单模块</div>
+                </div>
+                <div class="rounded-xl p-3 border border-ember-500/30 bg-ember-500/5">
+                  <div class="text-xs text-ember-300 font-mono">重度使用</div>
+                  <div class="mt-1 text-bone-50 font-display text-lg">16GB+</div>
+                  <div class="text-[11px] text-bone-500">大工程 · 构建 · 调试</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-bone-300 text-sm font-medium mb-2">终端 Shell</div>
+              <div class="flex flex-wrap gap-2 text-xs font-mono">
+                <span class="px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-bone-300">PowerShell 7+</span>
+                <span class="px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-bone-300">Zsh</span>
+                <span class="px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-bone-300">Bash</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ╭── MODEL CONFIG ────────────────────────────────────────────╮ -->
+  <section id="config" class="relative py-28 border-t border-white/5 bg-gradient-to-b from-transparent to-ink-900/40">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+
+      <div class="grid lg:grid-cols-12 gap-12 mb-14">
+        <div class="lg:col-span-6 reveal">
+          <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">05 · MODEL & CONFIG</div>
+          <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl md:text-5xl leading-[1.05]">
+            登录即可免费用 <span class="text-ember-400">GLM-5.1</span>，
+            <span class="block italic font-normal text-bone-300">也可自由接入第三方。</span>
+          </h2>
+        </div>
+        <div class="lg:col-span-6 lg:pt-8 reveal">
+          <p class="text-bone-300 leading-relaxed">
+            登录后默认开通免费模型通道（GLM-5.1，单账号每分钟 50 次请求）。
+            通过 <code class="font-mono text-ember-300">/models</code> 切换模型，
+            <code class="font-mono text-ember-300">Ctrl+A</code> 配置 Provider，
+            或直接编辑 <code class="font-mono text-ember-300">deveco.jsonc</code>。
+          </p>
+        </div>
+      </div>
+
+      <!-- code blocks side by side -->
+      <div class="grid lg:grid-cols-2 gap-5">
+
+        <div class="rounded-2xl overflow-hidden border border-white/10 bg-ink-950 code-shadow reveal">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-ink-900/70">
+            <div class="font-mono text-xs text-bone-400">deveco.jsonc · Provider 配置</div>
+            <button onclick="copyCode(this)" data-code='{\n  "$schema": "https://opencode.ai/config.json",\n  "provider": {\n    "deveco": {\n      "name": "DevEco Code",\n      "models": {\n        "glm-5": {\n          "tool_call": true,\n          "limit": { "context": 200000, "output": 8192 }\n        }\n      },\n      "options": {\n        "baseURL": "https://api.openbitfun.com/v1",\n        "apiKey": "{env:DEVECO_API_KEY}"\n      }\n    }\n  }\n}'
+                    class="text-xs font-mono text-bone-400 hover:text-ember-300 transition">复制</button>
+          </div>
+<pre class="px-5 py-5 overflow-x-auto text-[12.5px] leading-relaxed font-mono"><code class="text-bone-200"><span class="text-bone-500">{</span>
+  <span class="text-cyan-accent">"$schema"</span>: <span class="text-ember-300">"https://opencode.ai/config.json"</span>,
+  <span class="text-cyan-accent">"provider"</span>: {
+    <span class="text-cyan-accent">"deveco"</span>: {
+      <span class="text-cyan-accent">"name"</span>: <span class="text-ember-300">"DevEco Code"</span>,
+      <span class="text-cyan-accent">"models"</span>: {
+        <span class="text-cyan-accent">"glm-5"</span>: {
+          <span class="text-cyan-accent">"tool_call"</span>: <span class="text-ember-400">true</span>,
+          <span class="text-cyan-accent">"limit"</span>: { <span class="text-cyan-accent">"context"</span>: <span class="text-ember-400">200000</span>, <span class="text-cyan-accent">"output"</span>: <span class="text-ember-400">8192</span> }
+        }
+      },
+      <span class="text-cyan-accent">"options"</span>: {
+        <span class="text-cyan-accent">"baseURL"</span>: <span class="text-ember-300">"https://api.openbitfun.com/v1"</span>,
+        <span class="text-cyan-accent">"apiKey"</span>: <span class="text-ember-300">"{env:DEVECO_API_KEY}"</span>
+      }
+    }
+  }
+<span class="text-bone-500">}</span></code></pre>
+        </div>
+
+        <div class="rounded-2xl overflow-hidden border border-white/10 bg-ink-950 code-shadow reveal">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-ink-900/70">
+            <div class="font-mono text-xs text-bone-400">deveco.jsonc · 第三方多模态（UI 检查）</div>
+            <button onclick="copyCode(this)" data-code='qwen3-vl-plus'
+                    class="text-xs font-mono text-bone-400 hover:text-ember-300 transition">复制</button>
+          </div>
+<pre class="px-5 py-5 overflow-x-auto text-[12.5px] leading-relaxed font-mono"><code class="text-bone-200"><span class="text-bone-500">{</span>
+  <span class="text-cyan-accent">"provider"</span>: {
+    <span class="text-cyan-accent">"myprovider"</span>: {
+      <span class="text-cyan-accent">"npm"</span>: <span class="text-ember-300">"@ai-sdk/openai-compatible"</span>,
+      <span class="text-cyan-accent">"name"</span>: <span class="text-ember-300">"alibaba"</span>,
+      <span class="text-cyan-accent">"options"</span>: {
+        <span class="text-cyan-accent">"baseURL"</span>: <span class="text-ember-300">"https://dashscope.aliyuncs.com/compatible-mode/v1"</span>,
+        <span class="text-cyan-accent">"apiKey"</span>: <span class="text-ember-300">"your-api-key"</span>
+      },
+      <span class="text-cyan-accent">"models"</span>: {
+        <span class="text-cyan-accent">"qwen3-vl-plus"</span>: { <span class="text-cyan-accent">"modalities"</span>: { <span class="text-cyan-accent">"input"</span>: [<span class="text-ember-300">"text"</span>,<span class="text-ember-300">"image"</span>], <span class="text-cyan-accent">"output"</span>: [<span class="text-ember-300">"text"</span>] } }
+      }
+    }
+  },
+  <span class="text-cyan-accent">"agent"</span>: {
+    <span class="text-cyan-accent">"ui_verification"</span>: {
+      <span class="text-cyan-accent">"mode"</span>: <span class="text-ember-300">"subagent"</span>,
+      <span class="text-cyan-accent">"model"</span>: <span class="text-ember-300">"myprovider/qwen3-vl-plus"</span>,
+      <span class="text-cyan-accent">"hidden"</span>: <span class="text-ember-400">true</span>
+    }
+  }
+<span class="text-bone-500">}</span></code></pre>
+        </div>
+      </div>
+
+      <!-- config priority -->
+      <div class="mt-10 reveal">
+        <div class="text-xs font-mono text-bone-400 mb-4 tracking-widest uppercase">配置文件读取优先级</div>
+        <div class="flex flex-col md:flex-row items-stretch gap-3">
+          <div class="flex-1 px-5 py-4 rounded-xl bg-ink-900/60 border border-ember-500/30 font-mono text-sm">
+            <div class="text-ember-400 text-xs mb-1">01 · 最高</div>
+            <code class="text-bone-100">.deveco/deveco.jsonc</code>
+            <div class="text-[11px] text-bone-500 mt-1">项目目录</div>
+          </div>
+          <div class="hidden md:flex items-center text-bone-600 font-mono">→</div>
+          <div class="flex-1 px-5 py-4 rounded-xl bg-ink-900/60 border border-white/10 font-mono text-sm">
+            <div class="text-bone-400 text-xs mb-1">02</div>
+            <code class="text-bone-100">deveco.jsonc</code>
+            <div class="text-[11px] text-bone-500 mt-1">项目目录</div>
+          </div>
+          <div class="hidden md:flex items-center text-bone-600 font-mono">→</div>
+          <div class="flex-1 px-5 py-4 rounded-xl bg-ink-900/60 border border-white/10 font-mono text-sm">
+            <div class="text-bone-400 text-xs mb-1">03 · 最低</div>
+            <code class="text-bone-100">~/.config/deveco/deveco.jsonc</code>
+            <div class="text-[11px] text-bone-500 mt-1">用户目录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── EXTEND ──────────────────────────────────────────────────╮ -->
+  <section id="extend" class="relative py-28 border-t border-white/5">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10">
+
+      <div class="max-w-3xl reveal">
+        <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">06 · EXTEND</div>
+        <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl md:text-5xl leading-[1.05]">
+          扩展能力：兼容 OpenCode 生态。
+        </h2>
+        <p class="mt-5 text-bone-300 leading-relaxed">
+          DevEco Code 保留了 OpenCode 的 Skill / MCP / Plugin 扩展点。
+          安装第三方扩展、定制 Agent 行为、接入企业内部服务，开箱即用。
+        </p>
+      </div>
+
+      <div class="mt-14 grid md:grid-cols-3 gap-5">
+        <!-- Skills -->
+        <div class="rounded-3xl border border-white/10 bg-ink-900/60 p-7 card-glow reveal">
+          <div class="flex items-center justify-between mb-4">
+            <span class="font-display font-bold text-lg text-bone-50">Skills</span>
+            <span class="font-mono text-xs text-ember-300 px-2 py-0.5 rounded-full bg-ember-500/10 border border-ember-500/30">扩展</span>
+          </div>
+          <p class="text-sm text-bone-400 leading-relaxed">通过 npx 安装公共 Skill 仓库，或把自定义 Skill 放在用户目录。</p>
+          <div class="mt-5 rounded-xl bg-ink-950 border border-white/5 p-3 font-mono text-[12.5px] text-bone-200">
+            <div><span class="text-ember-400">$</span> npx skills add</div>
+            <div class="text-cyan-accent ml-3">vercel-labs/agent-skills</div>
+          </div>
+          <div class="mt-3 font-mono text-[11px] text-bone-500">~/.config/deveco/skills</div>
+        </div>
+
+        <!-- MCP -->
+        <div class="rounded-3xl border border-white/10 bg-ink-900/60 p-7 card-glow reveal">
+          <div class="flex items-center justify-between mb-4">
+            <span class="font-display font-bold text-lg text-bone-50">MCP</span>
+            <span class="font-mono text-xs text-cyan-accent px-2 py-0.5 rounded-full bg-cyan-accent/10 border border-cyan-accent/30">协议</span>
+          </div>
+          <p class="text-sm text-bone-400 leading-relaxed">在 <code class="font-mono text-ember-300">deveco.jsonc</code> 中接入任意 MCP server。</p>
+<pre class="mt-5 rounded-xl bg-ink-950 border border-white/5 p-3 font-mono text-[12px] text-bone-200 overflow-x-auto"><code><span class="text-cyan-accent">"mcp"</span>: {
+  <span class="text-cyan-accent">"playwright"</span>: {
+    <span class="text-cyan-accent">"type"</span>: <span class="text-ember-300">"local"</span>,
+    <span class="text-cyan-accent">"command"</span>: [<span class="text-ember-300">"npx"</span>, <span class="text-ember-300">"@playwright/mcp"</span>]
+  }
+}</code></pre>
+        </div>
+
+        <!-- Plugins -->
+        <div class="rounded-3xl border border-white/10 bg-ink-900/60 p-7 card-glow reveal">
+          <div class="flex items-center justify-between mb-4">
+            <span class="font-display font-bold text-lg text-bone-50">Plugins</span>
+            <span class="font-mono text-xs text-bone-300 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">插件</span>
+          </div>
+          <p class="text-sm text-bone-400 leading-relaxed">通过 npm 安装插件，并在配置中声明入口路径。</p>
+          <div class="mt-5 rounded-xl bg-ink-950 border border-white/5 p-3 font-mono text-[12.5px] text-bone-200">
+            <div><span class="text-ember-400">$</span> npm i -g <span class="text-cyan-accent">oh-my-opencode</span></div>
+          </div>
+<pre class="mt-3 rounded-xl bg-ink-950 border border-white/5 p-3 font-mono text-[12px] text-bone-200"><code><span class="text-cyan-accent">"plugin"</span>: [
+  <span class="text-ember-300">"node_modules/oh-my-opencode/dist/index.js"</span>
+]</code></pre>
+        </div>
+      </div>
+
+      <p class="mt-8 text-sm text-bone-500 font-mono reveal">
+        ⚠ 新增或修改扩展配置后，需退出并重新启动 <code class="text-ember-300">deveco</code> 后生效。
+      </p>
+    </div>
+  </section>
+
+  <!-- ╭── MIGRATE ─────────────────────────────────────────────────╮ -->
+  <section class="relative py-24 border-t border-white/5 bg-ink-900/30">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10 grid lg:grid-cols-12 gap-12 items-center">
+
+      <div class="lg:col-span-5 reveal">
+        <div class="text-xs font-mono text-ember-400 tracking-widest uppercase">07 · MIGRATE</div>
+        <h2 class="mt-3 font-display font-bold tracking-tight text-bone-50 text-4xl leading-[1.05]">
+          从 OpenCode 迁移？
+          <span class="block italic font-normal text-bone-300">一行命令完成。</span>
+        </h2>
+        <p class="mt-5 text-bone-300 leading-relaxed">
+          将原有 <code class="font-mono text-ember-300">opencode.jsonc</code> 拷贝到 DevEco Code 配置路径即可。
+          Skills、Agents、Plugins 同样可迁移到 <code class="font-mono text-ember-300">~/.config/deveco</code>。
+        </p>
+      </div>
+
+      <div class="lg:col-span-7 reveal space-y-4">
+        <div class="rounded-2xl border border-white/10 bg-ink-950 overflow-hidden">
+          <div class="px-5 py-3 border-b border-white/5 bg-ink-900/70 flex items-center justify-between">
+            <span class="font-mono text-xs text-bone-400">Windows · PowerShell</span>
+            <span class="font-mono text-xs text-ember-300">›_</span>
+          </div>
+          <pre class="px-5 py-4 font-mono text-[13px] text-bone-100 overflow-x-auto"><code><span class="text-bone-500"># 拷贝主配置文件</span>
+Copy-Item -Force <span class="text-ember-300">"{源路径}\opencode.jsonc"</span> <span class="text-cyan-accent">"~\.config\deveco\deveco.jsonc"</span></code></pre>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-ink-950 overflow-hidden">
+          <div class="px-5 py-3 border-b border-white/5 bg-ink-900/70 flex items-center justify-between">
+            <span class="font-mono text-xs text-bone-400">macOS · Zsh</span>
+            <span class="font-mono text-xs text-ember-300">›_</span>
+          </div>
+          <pre class="px-5 py-4 font-mono text-[13px] text-bone-100 overflow-x-auto"><code><span class="text-bone-500"># 拷贝主配置文件</span>
+cp <span class="text-ember-300">{源路径}/opencode.jsonc</span> <span class="text-cyan-accent">~/.config/deveco/deveco.jsonc</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── CTA ─────────────────────────────────────────────────────╮ -->
+  <section class="relative py-32 overflow-hidden border-t border-white/5">
+    <div class="absolute inset-0 bg-mesh"></div>
+    <div class="absolute inset-0 bg-grid opacity-50"></div>
+    <div class="relative max-w-[1100px] mx-auto px-6 lg:px-10 text-center reveal">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-ember-500/10 border border-ember-500/30 text-ember-300 font-mono text-xs mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-ember-400 animate-pulse"></span>
+        免费 · 基于 OpenCode 扩展 · MIT 许可
+      </div>
+
+      <h2 class="font-display font-bold tracking-tightest text-bone-50 leading-[0.95] text-[clamp(2.5rem,6vw,5.5rem)]">
+        现在，
+        <span class="block italic font-normal text-bone-300">在终端里打开它。</span>
+      </h2>
+
+      <div class="mt-10 max-w-2xl mx-auto">
+        <div class="rounded-2xl border border-ember-500/30 bg-ink-950/80 backdrop-blur p-1.5 flex items-center gap-2 code-shadow">
+          <div class="flex-1 px-4 py-3 font-mono text-bone-100 text-left text-base">
+            <span class="text-ember-400">$</span>
+            npm install -g <span class="text-cyan-accent">@deveco/deveco-code</span>
+          </div>
+          <button onclick="copyCode(this)" data-code="npm install -g @deveco/deveco-code"
+                  class="px-5 py-3 rounded-xl bg-ember-500 hover:bg-ember-400 text-ink-950 font-medium text-sm transition shadow-lg shadow-ember-500/30">
+            复制
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-10 flex flex-wrap justify-center items-center gap-6 text-sm text-bone-400">
+        <a href="https://gitcode.com/openharmony-sig/deveco-code" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">GitCode 仓库</a>
+        <span class="text-white/10">·</span>
+        <a href="https://gitcode.com/openharmony-sig/deveco-code/wiki/FAQ.md" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">FAQ</a>
+        <span class="text-white/10">·</span>
+        <a href="https://opencode.ai/docs/zh-cn/tui/" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">TUI 文档</a>
+        <span class="text-white/10">·</span>
+        <a href="https://gitcode.com/openharmony-sig/deveco-code/issues" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">反馈与交流</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╭── FOOTER ──────────────────────────────────────────────────╮ -->
+  <footer class="border-t border-white/5 bg-ink-950">
+    <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-14 grid md:grid-cols-12 gap-10">
+      <div class="md:col-span-5">
+        <div class="flex items-center gap-2.5 mb-4">
+          <span class="w-7 h-7 rounded-md grid place-items-center bg-gradient-to-br from-ember-400 to-ember-700 text-ink-950 font-mono font-bold text-sm">D</span>
+          <span class="font-display font-semibold tracking-tight text-bone-50">DevEco<span class="text-ember-400">Code</span></span>
+        </div>
+        <p class="text-sm text-bone-400 leading-relaxed max-w-md">
+          面向 HarmonyOS 开发场景的 AI Agent 工具，由 OpenHarmony 社区维护，基于
+          <a href="https://opencode.ai" class="link-ember text-ember-300 hover:text-ember-200" target="_blank">OpenCode</a> 扩展开发。
+        </p>
+        <p class="text-xs text-bone-500 mt-4 leading-relaxed max-w-md">
+          DevEco Code <strong class="text-bone-300">并非</strong> OpenCode 团队出品，与 OpenCode 团队无附属或关联关系。
+          相关问题请通过 GitCode Issue 反馈。
+        </p>
+      </div>
+
+      <div class="md:col-span-2">
+        <div class="font-mono text-xs text-bone-500 uppercase tracking-widest mb-4">产品</div>
+        <ul class="space-y-2.5 text-sm text-bone-300">
+          <li><a href="#start" class="link-ember hover:text-bone-50">快速开始</a></li>
+          <li><a href="#features" class="link-ember hover:text-bone-50">能力</a></li>
+          <li><a href="#agents" class="link-ember hover:text-bone-50">Agent 模式</a></li>
+          <li><a href="#config" class="link-ember hover:text-bone-50">模型配置</a></li>
+        </ul>
+      </div>
+
+      <div class="md:col-span-2">
+        <div class="font-mono text-xs text-bone-500 uppercase tracking-widest mb-4">资源</div>
+        <ul class="space-y-2.5 text-sm text-bone-300">
+          <li><a href="https://gitcode.com/openharmony-sig/deveco-code" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">源代码</a></li>
+          <li><a href="https://gitcode.com/openharmony-sig/deveco-code/wiki/FAQ.md" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">FAQ</a></li>
+          <li><a href="https://opencode.ai/docs/zh-cn/tui/" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">TUI 文档</a></li>
+          <li><a href="https://gitcode.com/openharmony-sig/deveco-code/issues" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">Issue 反馈</a></li>
+        </ul>
+      </div>
+
+      <div class="md:col-span-3">
+        <div class="font-mono text-xs text-bone-500 uppercase tracking-widest mb-4">依赖</div>
+        <ul class="space-y-2.5 text-sm text-bone-300">
+          <li><a href="https://nodejs.org" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">Node.js ≥ 22</a></li>
+          <li><a href="https://developer.huawei.com/consumer/cn/deveco-studio/" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">DevEco Studio ≥ 6.1</a></li>
+          <li><a href="https://www.npmjs.com/package/@deveco/deveco-code" target="_blank" rel="noreferrer" class="link-ember hover:text-bone-50">@deveco/deveco-code</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="border-t border-white/5">
+      <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs font-mono text-bone-500">
+        <div>© 2026 OpenHarmony SIG · DevEco Code · MIT License</div>
+        <div class="flex items-center gap-4">
+          <span>Built with <span class="text-ember-400">♥</span> for HarmonyOS</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full bg-ember-500 text-ink-950 font-medium text-sm shadow-xl shadow-ember-500/40 opacity-0 translate-y-3 transition-all duration-300 pointer-events-none">
+    已复制到剪贴板
+  </div>
+
+  <script>
+    // Reveal on scroll
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    // Copy to clipboard
+    function copyCode(btn) {
+      const code = btn.dataset.code || '';
+      navigator.clipboard.writeText(code).then(() => {
+        const t = document.getElementById('toast');
+        t.style.opacity = '1';
+        t.style.transform = 'translate(-50%, 0)';
+        setTimeout(() => {
+          t.style.opacity = '0';
+          t.style.transform = 'translate(-50%, 12px)';
+        }, 1600);
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>
